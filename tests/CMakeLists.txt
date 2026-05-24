@@ -5,6 +5,11 @@ add_executable(test_my_player test_my_player.cpp)
 target_link_libraries(test_my_player tttplayer)
 add_test(NAME smoke_test_player COMMAND ./test_my_player)
 
+# Unit tests for make_move
+add_executable(test_make_move test_make_move.cpp)
+target_link_libraries(test_make_move tttplayer)
+add_test(NAME test_make_move COMMAND ./test_make_move)
+
 add_executable(test_stats test_stats.cpp)
 target_link_libraries(test_stats tttplayer)
 add_test(NAME test_player_stats COMMAND ./test_stats)
