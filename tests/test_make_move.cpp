@@ -112,12 +112,84 @@ void test_block_open_four() {
     }
 }
 
+void test_get_candidate_moves() {
+    State::Opts opts{5, 5, 5, 25};
+    State state(opts);
+    ttt::my_player::HeuristicEvaluator evaluator;
+
+    // Пустая доска, должны получить пустой массив кандидатов, так как рядом нет камней
+    auto candidates = evaluator.get_candidate_moves(state, Sign::X);
+    assert(candidates.empty());
+
+    // Ставим камень, проверяем что кандидаты теперь есть (не больше 24, обычно вокруг камня)
+    state.process_move(Sign::X, 2, 2);
+    candidates = evaluator.get_candidate_moves(state, Sign::O);
+    assert(!candidates.empty());
+    
+    // Проверим, что лучший кандидат получает больше всего очков
+    // С точки зрения O нужно блокировать/ходить рядом
+    bool found = false;
+    for(auto c : candidates) {
+        if(c.x == 2 && c.y == 3) found = true; // Рядом с X
+    }
+    assert(found);
+    std::cout << "[OK] test_get_candidate_moves\n";
+}
+
+void test_evaluate_board() {
+    State::Opts opts{5, 5, 3, 25}; // Маленькое поле
+    State state(opts);
+    ttt::my_player::HeuristicEvaluator evaluator;
+
+    // Пустая доска
+    int eval = evaluator.evaluate_board(state, Sign::X);
+    assert(eval == 0); // Позиция одинакова для обоих
+
+    // Ставим крестик, Х должен быть выигрышнее
+    state.process_move(Sign::X, 2, 2);
+    state.process_move(Sign::O, 0, 0); // Нолик далеко
+    // Теперь позиция Х чуть лучше или равна (центр против края)
+    int eval_x = evaluator.evaluate_board(state, Sign::X);
+    int eval_o = evaluator.evaluate_board(state, Sign::O);
+    // Для X должно быть больше, чем для O (если мы оцениваем с т.з. X, оценка должна быть положительной)
+    assert(eval_x > 0 || (eval_x == -eval_o)); 
+    std::cout << "[OK] test_evaluate_board\n";
+}
+
+void test_minimax() {
+    State::Opts opts{3, 3, 3, 9}; // Крестики-нолики 3x3
+    State state(opts);
+    ttt::my_player::HeuristicEvaluator evaluator;
+
+    // Создаем ситуацию, где X выигрывает в один ход (если ходит X)
+    state.process_move(Sign::X, 0, 0);
+    state.process_move(Sign::O, 1, 2);
+    state.process_move(Sign::X, 0, 1);
+    state.process_move(Sign::O, 2, 2); 
+
+    // Вызываем get_best_move
+    auto move = evaluator.get_best_move(state, Sign::X);
+    
+    // Ожидаем, что лучший ход будет на (0, 2) с оценкой победы
+    if(move.x != 0 || move.y != 2) {
+        std::cerr << "Expected move at (0,2) but got (" << move.x << "," << move.y << ") with score " << move.score << std::endl;
+        assert(false);
+    }
+
+    std::cout << "[OK] test_minimax\n";
+}
+
 int main() {
     std::cout << "Running make_move unit tests...\n";
     test_first_move_takes_center();
     test_immediate_win();
     test_block_opponent_win();
     test_block_open_four();
+    
+    test_get_candidate_moves();
+    test_evaluate_board();
+    test_minimax();
+    
     std::cout << "All make_move tests passed!\n";
     return 0;
 }

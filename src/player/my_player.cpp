@@ -6,23 +6,6 @@
 
 namespace ttt::my_player {
 
-class HeuristicEvaluator {
-public:
-    static constexpr int SCORE_WIN = 1000000;
-    static constexpr int SCORE_OPEN_4 = 50000;
-    static constexpr int SCORE_CLOSED_4 = 10000;
-    static constexpr int SCORE_OPEN_3 = 8000;
-    static constexpr int SCORE_CLOSED_3 = 1000;
-    static constexpr int SCORE_OPEN_2 = 500;
-    static constexpr int SCORE_CLOSED_2 = 50;
-    static constexpr int SCORE_BASE = 10;
-
-    struct MoveScore {
-        int x;
-        int y;
-        int score;
-    };
-
     // -------------------------------------------------------------------------
     // get_candidate_moves:
     // Функция генерирует список наиболее перспективных ходов. 
@@ -30,12 +13,12 @@ public:
     // проверять вообще все пустые клетки на поле , обсчет займет часы. Поэтому этот метод отсекает "мусорные" 
     // ходы и готовит сортированный список лучших кандидатов для минимакса.
     // -------------------------------------------------------------------------
-    std::vector<MoveScore> get_candidate_moves(const State& state, Sign my_sign) const {
+    std::vector<HeuristicEvaluator::MoveScore> HeuristicEvaluator::get_candidate_moves(const State& state, Sign my_sign) const {
         int rows = state.get_opts().rows;
         int cols = state.get_opts().cols;
         Sign opp_sign = (my_sign == Sign::X) ? Sign::O : Sign::X;
 
-        std::vector<MoveScore> candidates;
+        std::vector<HeuristicEvaluator::MoveScore> candidates;
         for (int y = 0; y < rows; ++y) {
             for (int x = 0; x < cols; ++x) {
                 if (state.get_value(x, y) == Sign::NONE) {
@@ -86,7 +69,7 @@ public:
     // Функция оценки ВСЕЙ доски. Она вызывается, когда Минимакс доходит до 
     // максимальной глубины (depth == 0) и нужно дать грубую оценку текущей ситуации.
     // -------------------------------------------------------------------------
-    int evaluate_board(const State& state, Sign my_sign) const {
+    int HeuristicEvaluator::evaluate_board(const State& state, Sign my_sign) const {
         int rows = state.get_opts().rows;
         int cols = state.get_opts().cols;
         Sign opp_sign = (my_sign == Sign::X) ? Sign::O : Sign::X;
@@ -115,7 +98,7 @@ public:
     // Классический рекурсивный Минимакс алгоритм с Альфа-Бета отсечением.
     // Пытается заглянуть в будущее на depth ходов.
     // -------------------------------------------------------------------------
-    int minimax(State state, int depth, int alpha, int beta, bool maximizingPlayer, Sign my_sign, Sign current_turn) const {
+    int HeuristicEvaluator::minimax(State state, int depth, int alpha, int beta, bool maximizingPlayer, Sign my_sign, Sign current_turn) const {
         // 1. Условие выхода (Конец Игры)
         if (state.get_status() == game::Status::ENDED) {
             Sign winner = state.get_winner();
@@ -203,7 +186,7 @@ public:
     // Стартовая функция (Root node), принимающая текущее состояние игры.
     // Работает как "нулевой" уровень глубины Минимакса.
     // -------------------------------------------------------------------------
-    MoveScore get_best_move(const State& state, Sign my_sign) const {
+    HeuristicEvaluator::MoveScore HeuristicEvaluator::get_best_move(const State& state, Sign my_sign) const {
         int rows = state.get_opts().rows;
         int cols = state.get_opts().cols;
         Sign opp_sign = (my_sign == Sign::X) ? Sign::O : Sign::X;
@@ -277,8 +260,7 @@ public:
         return best_move;
     }
 
-private:
-    bool has_stone_nearby(const State& state, int cx, int cy, int rows, int cols) const {
+    bool HeuristicEvaluator::has_stone_nearby(const State& state, int cx, int cy, int rows, int cols) const {
         for (int dy = -2; dy <= 2; ++dy) {
             for (int dx = -2; dx <= 2; ++dx) {
                 if (dx == 0 && dy == 0) continue;
@@ -294,46 +276,49 @@ private:
         return false; 
     }
 
-    int evaluate_cell(const State& state, int cx, int cy, Sign target_sign) const {
+    int HeuristicEvaluator::evaluate_cell(const State& state, int cx, int cy, Sign target_sign) const {
         int total_score = 0;
         const int dx[] = {1, 0, 1, 1};
         const int dy[] = {0, 1, 1, -1};
         int rows = state.get_opts().rows;
         int cols = state.get_opts().cols;
+        int win_len = state.get_opts().win_len;
 
         for (int dir = 0; dir < 4; ++dir) {
-            total_score += evaluate_direction(state, cx, cy, dx[dir], dy[dir], target_sign, rows, cols);
+            total_score += evaluate_direction(state, cx, cy, dx[dir], dy[dir], target_sign, rows, cols, win_len);
         }
         return total_score;
     }
 
-    int evaluate_direction(const State& state, int cx, int cy, int dx, int dy, 
-                           Sign target_sign, int rows, int cols) const {
-        int line[9];
+    int HeuristicEvaluator::evaluate_direction(const State& state, int cx, int cy, int dx, int dy, 
+                           Sign target_sign, int rows, int cols, int win_len) const {
+        int arr_size = 2 * win_len - 1;
+        std::vector<int> line(arr_size);
         
-        for (int i = -4; i <= 4; ++i) {
+        for (int i = -(win_len - 1); i <= win_len - 1; ++i) {
             int nx = cx + i * dx;
             int ny = cy + i * dy;
+            int idx = i + (win_len - 1);
             
             if (i == 0) {
-                line[i + 4] = 1; 
+                line[idx] = 1; 
             } else if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
                 Sign s = state.get_value(nx, ny);
-                if (s == target_sign) line[i + 4] = 1;           
-                else if (s == Sign::NONE) line[i + 4] = 0; 
-                else line[i + 4] = 2;                            
+                if (s == target_sign) line[idx] = 1;           
+                else if (s == Sign::NONE) line[idx] = 0; 
+                else line[idx] = 2;                            
             } else {
-                line[i + 4] = 2; 
+                line[idx] = 2; 
             }
         }
 
-        int w5 = 0, w4 = 0, w3 = 0, w2 = 0;
+        int w_win = 0, w_4 = 0, w_3 = 0, w_2 = 0;
         
-        for (int start_idx = 0; start_idx <= 4; ++start_idx) {
+        for (int start_idx = 0; start_idx < win_len; ++start_idx) {
             bool impossible = false;
             int count_1 = 0;
             
-            for (int j = 0; j < 5; ++j) {
+            for (int j = 0; j < win_len; ++j) {
                 if (line[start_idx + j] == 2) { 
                     impossible = true; 
                     break;
@@ -343,23 +328,23 @@ private:
             
             if (impossible) continue; 
             
-            if (count_1 == 5) w5++;
-            else if (count_1 == 4) w4++;
-            else if (count_1 == 3) w3++;
-            else if (count_1 == 2) w2++;
+            if (count_1 == win_len) w_win++;
+            else if (count_1 == win_len - 1) w_4++;
+            else if (count_1 == win_len - 2) w_3++;
+            else if (count_1 == win_len - 3) w_2++;
         }
 
-        if (w5 > 0) return SCORE_WIN;
-        if (w4 >= 2) return SCORE_OPEN_4;
-        if (w4 == 1) return SCORE_CLOSED_4; 
-        if (w3 >= 2) return SCORE_OPEN_3;
-        if (w3 == 1) return SCORE_CLOSED_3;
-        if (w2 >= 2) return SCORE_OPEN_2;
-        if (w2 == 1) return SCORE_CLOSED_2;
+        if (w_win > 0) return SCORE_WIN;
+        if (w_4 >= 2) return SCORE_OPEN_4;
+        if (w_4 == 1) return SCORE_CLOSED_4; 
+        if (w_3 >= 2) return SCORE_OPEN_3;
+        if (w_3 == 1) return SCORE_CLOSED_3;
+        if (w_2 >= 2) return SCORE_OPEN_2;
+        if (w_2 == 1) return SCORE_CLOSED_2;
 
         return SCORE_BASE; 
     }
-};
+
 
 void MyPlayer::set_sign(Sign sign) { m_sign = sign; }
 const char *MyPlayer::get_name() const { return m_name; }
